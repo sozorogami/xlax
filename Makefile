@@ -1,4 +1,4 @@
-GOPATH=/Users/marantz/src/xlax
+GOPATH=${PWD}
 export GOBIN=${GOPATH}/bin
 SPATH=src/github.com/user/xlax
 
