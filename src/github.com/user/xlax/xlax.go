@@ -87,10 +87,10 @@ func room(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "OK")
 		// calculate new value
 		v := m["value"]
-		var s Status
-		if v > 400 {
+		s := shitters["9W Mens"].CurrentStatus
+		if v > shitters["9W Mens"].closedThreshold {
 			s = Occupied
-		} else {
+		} else if v < shitters["9W Mens"].openThreshold {
 			s = Empty
 		}
 		mu.Lock()
@@ -106,7 +106,7 @@ func room(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	shitters["9W Mens"] = NewShitter(300, 500)
+	shitters["9W Mens"] = NewShitter(500, 300)
 
 	http.HandleFunc("/room", room)
 	http.HandleFunc("/", echoString)
