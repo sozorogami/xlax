@@ -44,11 +44,6 @@ func NewShitter(closed int, open int) *Shitter {
 
 var shitters = make(map[string]*Shitter)
 
-type avail bool
-
-// TODO add support for multiple rooms
-var occupied avail
-
 func (s Status) String() string {
 	switch s {
 	case 0:
