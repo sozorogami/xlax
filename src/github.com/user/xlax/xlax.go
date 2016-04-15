@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"sync"
 )
 
@@ -50,11 +49,16 @@ type avail bool
 // TODO add support for multiple rooms
 var occupied avail
 
-func (s avail) String() string {
-	if s {
-		return "OCCUPIED"
-	} else {
-		return "NOT occupied"
+func (s Status) String() string {
+	switch s {
+	case 0:
+		return "Unknown"
+	case 1:
+		return "Empty"
+	case 2:
+		return "Occupied"
+	default:
+		panic("Wat?")
 	}
 }
 
@@ -69,9 +73,14 @@ func room(w http.ResponseWriter, r *http.Request) {
 		// Serve the resource.
 		m := make(map[string]string)
 		for key, shitter := range shitters {
-			m[key] = strconv.Itoa(int(shitter.CurrentStatus))
+			m[key] = shitter.CurrentStatus.String()
 		}
-		fmt.Fprintf(w, "Shitter status: %v", m)
+		rsp, err := json.Marshal(m)
+		if err != nil {
+			panic(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(rsp)
 	case "PUT":
 		// Update an existing record.
 		body, err := ioutil.ReadAll(r.Body)
