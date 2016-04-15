@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"sync"
 	"strconv"
+	"sync"
 )
 
 var mu sync.Mutex
@@ -22,10 +24,32 @@ func counter(w http.ResponseWriter, r *http.Request) {
 	mu.Unlock()
 }
 
+type Status int
+
+const (
+	Unknown Status = iota
+	Empty
+	Occupied
+)
+
+type Shitter struct {
+	closedThreshold int
+	openThreshold   int
+	CurrentStatus   Status
+	TimeOfLastUse   string
+}
+
+func NewShitter(closed int, open int) *Shitter {
+	return &Shitter{closedThreshold: closed, openThreshold: open}
+}
+
+var shitters = make(map[string]*Shitter)
+
 type avail bool
 
 // TODO add support for multiple rooms
 var occupied avail
+
 func (s avail) String() string {
 	if s {
 		return "OCCUPIED"
@@ -40,34 +64,38 @@ func isAbout(val int, center int) bool {
 }
 
 func room(w http.ResponseWriter, r *http.Request) {
-	var room = "9w Men's"
 	switch r.Method {
 	case "GET":
 		// Serve the resource.
-		fmt.Fprintf(w, "%s is currently %s\n", room, occupied)
+		m := make(map[string]string)
+		for key, shitter := range shitters {
+			m[key] = strconv.Itoa(int(shitter.CurrentStatus))
+		}
+		fmt.Fprintf(w, "Shitter status: %v", m)
 	case "PUT":
 		// Update an existing record.
-		in,err := strconv.Atoi(r.FormValue("value"))
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			msg := fmt.Sprintf("'%s' is an illegal value: %s\n",
-				r.FormValue("value"), err)
-			http.Error(w, msg, 400)
+			panic(err)
 		}
+		fmt.Println(string(body))
+		var m = make(map[string]int)
+		err = json.Unmarshal(body, &m)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintf(w, "OK")
 		// calculate new value
-		var newValue avail
-		if isAbout(in, 200) {
-			newValue = true
-		} else if isAbout(in, 600) {
-			newValue = false
+		v := m["value"]
+		var s Status
+		if v > 400 {
+			s = Occupied
 		} else {
-			return
+			s = Empty
 		}
 		mu.Lock()
-		oldValue := occupied
-		occupied = newValue
+		shitters["9W Mens"].CurrentStatus = s
 		mu.Unlock()
-		fmt.Fprintf(w, "%s was %s is now %s\n",
-			room, oldValue, newValue)
 	case "DELETE":
 		// Remove the record.
 		http.Error(w, "you can't remove %s: we don't have enough already\n", 405)
@@ -78,6 +106,8 @@ func room(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	shitters["9W Mens"] = NewShitter(300, 500)
+
 	http.HandleFunc("/room", room)
 	http.HandleFunc("/", echoString)
 	http.HandleFunc("/count", counter)
