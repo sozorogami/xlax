@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 var mu sync.Mutex
@@ -35,11 +36,13 @@ type Shitter struct {
 	closedThreshold int
 	openThreshold   int
 	CurrentStatus   Status
-	TimeOfLastUse   string
+	TimeOfLastUse   *string
 }
 
 func NewShitter(closed int, open int) *Shitter {
-	return &Shitter{closedThreshold: closed, openThreshold: open}
+	s := &Shitter{closedThreshold: closed, openThreshold: open}
+	s.TimeOfLastUse = nil
+	return s
 }
 
 var shitters = make(map[string]*Shitter)
@@ -57,6 +60,11 @@ func (s Status) String() string {
 	}
 }
 
+type ShitterInfo struct {
+	Status        string
+	TimeOfLastUse *string
+}
+
 func isAbout(val int, center int) bool {
 	const fuzz int = 100
 	return (val > (center - fuzz)) && (val < (center + fuzz))
@@ -66,9 +74,10 @@ func room(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		// Serve the resource.
-		m := make(map[string]string)
+		m := make(map[string]ShitterInfo)
 		for key, shitter := range shitters {
-			m[key] = shitter.CurrentStatus.String()
+			info := ShitterInfo{Status: shitter.CurrentStatus.String(), TimeOfLastUse: shitter.TimeOfLastUse}
+			m[key] = info
 		}
 		rsp, err := json.Marshal(m)
 		if err != nil {
@@ -95,6 +104,10 @@ func room(w http.ResponseWriter, r *http.Request) {
 		if v > shitters["9W Mens"].closedThreshold {
 			s = Occupied
 		} else if v < shitters["9W Mens"].openThreshold {
+			if s == Occupied {
+				s := time.Now().String()
+				shitters["9W Mens"].TimeOfLastUse = &s
+			}
 			s = Empty
 		}
 		mu.Lock()
@@ -120,6 +133,6 @@ func main() {
 		fmt.Fprintf(w, "I'm alive")
 	})
 
-	log.Fatal(http.ListenAndServe(":8081", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
